@@ -4,6 +4,7 @@ import { useAuth } from '@/hooks/use-auth'
 import { IncidentesPage } from '@/pages/incidentes'
 import { LoginPage } from '@/pages/login'
 import { MetricasPage } from '@/pages/metricas'
+import { MonitorDetailPage } from '@/pages/monitor-detail'
 import { MonitoresPage } from '@/pages/monitores'
 import type { ReactNode } from 'react'
 
@@ -27,6 +28,7 @@ export default function App() {
         >
           <Route index element={<Navigate to="/monitores" replace />} />
           <Route path="monitores" element={<MonitoresPage />} />
+          <Route path="monitores/:id" element={<MonitorDetailPage />} />
           <Route path="incidentes" element={<IncidentesPage />} />
           <Route path="metricas" element={<MetricasPage />} />
         </Route>

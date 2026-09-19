@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { Link } from 'react-router-dom'
 import {
   createColumnHelper,
   flexRender,
@@ -22,7 +23,6 @@ import {
 import { toast } from 'sonner'
 import { deleteMonitor, listMonitors, updateMonitor } from '@/api/monitors'
 import type { MonitorWithStatus } from '@/api/types'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
   Card,
@@ -32,22 +32,11 @@ import {
   CardTitle,
 } from '@/components/ui/card'
 import {
-  Drawer,
-  DrawerClose,
-  DrawerContent,
-  DrawerDescription,
-  DrawerFooter,
-  DrawerHeader,
-  DrawerTitle,
-  DrawerTrigger,
-} from '@/components/ui/drawer'
-import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
 import {
   Table,
@@ -63,7 +52,7 @@ import {
   TabsList,
   TabsTrigger,
 } from '@/components/ui/tabs'
-import { fmtMs, fmtTime, StatusBadge, toRequest } from './utils'
+import { fmtTime, StatusBadge, toRequest } from './utils'
 
 type MonitorRow = { [K in keyof MonitorWithStatus]: MonitorWithStatus[K] }
 
@@ -128,98 +117,6 @@ function ActiveSwitch({ row }: { row: MonitorRow }) {
   )
 }
 
-function TableCellViewer({ row }: { row: MonitorRow }) {
-  const queryClient = useQueryClient()
-  const [active, setActive] = useState(row.active)
-
-  const updateMonitorMutation = useMutation({
-    mutationFn: (next: boolean) =>
-      updateMonitor(row.id, { ...toRequest(row), active: next }),
-    onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: ['monitors'] })
-    },
-  })
-
-  const deleteMonitorMutation = useMutation({
-    mutationFn: () => deleteMonitor(row.id),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['monitors'] })
-      toast.success('Monitor eliminado')
-    },
-    onError: () => toast.error('No se pudo eliminar el monitor'),
-  })
-
-  return (
-    <Drawer>
-      <DrawerTrigger
-        render={
-          <Button variant="link" className="w-fit px-0 text-left text-foreground">
-            <Badge variant="secondary" className="rounded-md px-1">
-              ...
-            </Badge>
-            {row.name}
-          </Button>
-        }
-      />
-      <DrawerContent>
-        <DrawerHeader>
-          <DrawerTitle>{row.name}</DrawerTitle>
-          <DrawerDescription className="text-xs text-muted-foreground">
-            <StatusBadge status={row.status} />
-          </DrawerDescription>
-        </DrawerHeader>
-        <div className="grid gap-4 p-4 md:w-full md:max-w-md">
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <Label>URL</Label>
-              <div className="mt-1 text-sm break-all">{row.url}</div>
-            </div>
-            <div>
-              <Label>Método</Label>
-              <div className="mt-1 text-sm">{row.method}</div>
-            </div>
-            <div>
-              <Label>Estado esperado</Label>
-              <div className="mt-1 text-sm">{row.expected_status}</div>
-            </div>
-            <div>
-              <Label>Última comprobación</Label>
-              <div className="mt-1 text-sm">
-                {fmtTime(row.last_check_at)}
-              </div>
-            </div>
-            <div>
-              <Label>Latencia</Label>
-              <div className="mt-1 text-sm">
-                {typeof row.avg_response_ms === 'number'
-                  ? fmtMs(row.avg_response_ms)
-                  : '—'}
-              </div>
-            </div>
-          </div>
-          <div className="flex items-center justify-between border-t pt-4">
-            <Label htmlFor="active-switch">Monitor activo</Label>
-            <Switch
-              id="active-switch"
-              checked={active}
-              onCheckedChange={(next) => {
-                setActive(next)
-                updateMonitorMutation.mutate(next)
-              }}
-            />
-          </div>
-        </div>
-        <DrawerFooter>
-          <Button onClick={() => deleteMonitorMutation.mutate()}>
-            Eliminar monitor
-          </Button>
-          <DrawerClose render={<Button variant="outline" />}>Cerrar</DrawerClose>
-        </DrawerFooter>
-      </DrawerContent>
-    </Drawer>
-  )
-}
-
 export function DataTable() {
   const [page, setPage] = useState(1)
   const [pageSize] = useState(10)
@@ -240,7 +137,14 @@ export function DataTable() {
     () => [
       columnHelper.accessor('name', {
         header: () => <div className="w-full">Nombre</div>,
-        cell: ({ row }) => <TableCellViewer row={row.original} />,
+        cell: ({ row }) => (
+          <Link
+            to={`/monitores/${row.original.id}`}
+            className="font-medium underline-offset-4 hover:underline"
+          >
+            {row.original.name}
+          </Link>
+        ),
       }),
       columnHelper.accessor('url', {
         cell: ({ row }) => {
@@ -258,12 +162,12 @@ export function DataTable() {
         cell: ({ row }) => {
           const interval = row.getValue<number>('interval_seconds')
           return (
-            <div className="text-right tabular-nums">
+            <div className="text-center tabular-nums">
               {interval >= 60 ? `${Math.round(interval / 60)} m` : `${interval} s`}
             </div>
           )
         },
-        header: () => <div className="w-full text-right">Intervalo</div>,
+        header: () => <div className="w-full">Intervalo</div>,
       }),
       columnHelper.accessor('status', {
         cell: ({ row }) => <StatusBadge status={row.original.status} />,
@@ -278,7 +182,7 @@ export function DataTable() {
             </div>
           )
         },
-        header: () => <div className="w-full text-right">Actualizado</div>,
+        header: () => <div className="w-full">Actualizado</div>,
         enableSorting: false,
       }),
       columnHelper.accessor('active', {
@@ -345,17 +249,11 @@ export function DataTable() {
                       {headerGroup.headers.map((header) => (
                         <TableHead
                           key={header.id}
-                          className="[&>button]:block"
+                          className="md:px-4"
                           style={{ width: header.getSize() }}
                         >
                           {header.isPlaceholder ? null : (
-                            <div
-                              className={
-                                header.column.id === 'interval_seconds'
-                                  ? 'text-right'
-                                  : ''
-                              }
-                            >
+                            <div>
                               {header.column.getCanSort() &&
                               header.column.id !== 'last_check_at' ? (
                                 <button
