@@ -1,27 +1,32 @@
-import { Button } from '@/components/ui/button'
-import { AppSseStatus } from '@/components/stream-status'
+import {
+  SidebarInset,
+  SidebarProvider,
+} from '@/components/ui/sidebar'
+import { AppSidebar } from '@/components/dashboard/app-sidebar'
+import { SiteHeader } from '@/components/dashboard/site-header'
 import { useAuth } from '@/hooks/use-auth'
-import type { ReactNode } from 'react'
+import type { CSSProperties } from 'react'
+import { Outlet } from 'react-router-dom'
 
-export function AppShell({ children }: { children: ReactNode }) {
+export function AppShell() {
   const { logout } = useAuth()
 
   return (
-    <div className="min-h-screen bg-background">
-      <header className="border-b">
-        <div className="mx-auto flex h-14 max-w-6xl items-center justify-between px-4">
-          <div className="flex items-center gap-3">
-            <span className="text-lg font-semibold tracking-tight">Pulse</span>
-          </div>
-          <div className="flex items-center gap-4">
-            <AppSseStatus />
-            <Button variant="ghost" size="sm" onClick={logout}>
-              Salir
-            </Button>
-          </div>
+    <SidebarProvider
+      style={
+        {
+          '--sidebar-width': 'calc(var(--spacing) * 72)',
+          '--header-height': 'calc(var(--spacing) * 12)',
+        } as CSSProperties
+      }
+    >
+      <AppSidebar onLogout={logout} />
+      <SidebarInset>
+        <SiteHeader />
+        <div className="flex flex-1 flex-col gap-4 p-4 transition-all duration-200 ease-in-out group-data-[collapsible=icon]/sidebar-wrapper:h-auto">
+          <Outlet />
         </div>
-      </header>
-      <main className="mx-auto max-w-6xl px-4 py-6">{children}</main>
-    </div>
+      </SidebarInset>
+    </SidebarProvider>
   )
 }

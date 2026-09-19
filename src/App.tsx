@@ -1,8 +1,10 @@
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import { AppShell } from '@/layouts/app-shell'
 import { useAuth } from '@/hooks/use-auth'
-import { DashboardPage } from '@/pages/dashboard'
+import { IncidentesPage } from '@/pages/incidentes'
 import { LoginPage } from '@/pages/login'
+import { MetricasPage } from '@/pages/metricas'
+import { MonitoresPage } from '@/pages/monitores'
 import type { ReactNode } from 'react'
 
 function RequireAuth({ children }: { children: ReactNode }) {
@@ -17,16 +19,18 @@ export default function App() {
       <Routes>
         <Route path="/login" element={<LoginPage />} />
         <Route
-          path="/"
           element={
             <RequireAuth>
-              <AppShell>
-                <DashboardPage />
-              </AppShell>
+              <AppShell />
             </RequireAuth>
           }
-        />
-        <Route path="*" element={<Navigate to="/" replace />} />
+        >
+          <Route index element={<Navigate to="/monitores" replace />} />
+          <Route path="monitores" element={<MonitoresPage />} />
+          <Route path="incidentes" element={<IncidentesPage />} />
+          <Route path="metricas" element={<MetricasPage />} />
+        </Route>
+        <Route path="*" element={<Navigate to="/monitores" replace />} />
       </Routes>
     </BrowserRouter>
   )
