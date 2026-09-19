@@ -1,43 +1,56 @@
 import { useQuery } from '@tanstack/react-query'
-import { Activity, Radio, ShieldAlert, Zap } from 'lucide-react'
+import {
+  Activity,
+  CheckCircle2,
+  Radio,
+  RefreshCcw,
+  ShieldAlert,
+  Timer,
+  TriangleAlert,
+  Zap,
+} from 'lucide-react'
 import { listMonitors } from '@/api/monitors'
 import type { MonitorWithStatus } from '@/api/types'
 import type { ReactNode } from 'react'
+import { Badge } from '@/components/ui/badge'
 import {
   Card,
   CardAction,
   CardDescription,
+  CardFooter,
   CardHeader,
   CardTitle,
 } from '@/components/ui/card'
 import { fmtMs, fmtPct } from './utils'
 
-type CardProps = {
+type MonitorCardProps = {
   label: string
   value: string
-  detail: string
-  icon: ReactNode
+  badge: ReactNode
+  footerTitle: ReactNode
+  footerDetail: string
 }
 
-function MonitorCard({ label, value, detail, icon }: CardProps) {
+function MonitorCard({
+  label,
+  value,
+  badge,
+  footerTitle,
+  footerDetail,
+}: MonitorCardProps) {
   return (
-    <Card className="*:data-[slot=card]:bg-linear-to-t *:data-[slot=card]:from-primary/5 *:data-[slot=card]:to-card *:data-[slot=card]:shadow-xs">
+    <Card className="@container/card">
       <CardHeader>
-        <CardDescription className="flex items-center justify-between gap-2">
-          <span className="flex items-center gap-1">
-            {icon}
-            {label}
-          </span>
-          <CardAction>
-            <span className="text-2xl font-medium tabular-nums tracking-tight">
-              {value}
-            </span>
-          </CardAction>
-        </CardDescription>
-        <CardTitle className="text-sm font-normal text-muted-foreground">
-          {detail}
+        <CardDescription>{label}</CardDescription>
+        <CardTitle className="text-2xl font-semibold tabular-nums @[250px]/card:text-3xl">
+          {value}
         </CardTitle>
+        <CardAction>{badge}</CardAction>
       </CardHeader>
+      <CardFooter className="flex-col items-start gap-1.5 text-sm">
+        <div className="line-clamp-1 flex gap-2 font-medium">{footerTitle}</div>
+        <div className="text-muted-foreground">{footerDetail}</div>
+      </CardFooter>
     </Card>
   )
 }
@@ -47,6 +60,7 @@ type Counts = {
   operational: number
   down: number
   unknown: number
+  latencyCount: number
   avgLatency: number | null
 }
 
@@ -74,6 +88,7 @@ function computeCounts(monitors: MonitorWithStatus[]): Counts {
     operational,
     down,
     unknown,
+    latencyCount,
     avgLatency: latencyCount > 0 ? latencySum / latencyCount : null,
   }
 }
@@ -86,35 +101,76 @@ export function SectionCards() {
   })
 
   const monitors = data?.data ?? []
-  const { total, operational, down, avgLatency } =
+  const { total, operational, down, unknown, latencyCount, avgLatency } =
     computeCounts(monitors)
   const availability = total > 0 ? operational / total : null
 
   return (
-    <div className="*:data-[slot=card]:from-primary/5 *:data-[slot=card]:to-card *:data-[slot=card]:shadow-xs *:data-[slot=card]:bg-linear-to-t grid grid-cols-1 gap-4 px-4 *:rounded-lg lg:px-6 @5xl/main:grid-cols-4 @4xl/main:grid-cols-2">
+    <div className="*:data-[slot=card]:bg-gradient-to-t *:data-[slot=card]:from-primary/5 *:data-[slot=card]:to-card *:data-[slot=card]:shadow-xs grid grid-cols-1 gap-4 px-4 lg:px-6 @xl/main:grid-cols-2 @5xl/main:grid-cols-4 dark:*:data-[slot=card]:bg-card">
       <MonitorCard
         label="Disponibilidad"
         value={availability !== null ? fmtPct(availability) : '—'}
-        detail="Monitores operativos"
-        icon={<Activity className="size-4" />}
+        badge={
+          <Badge variant={down > 0 ? 'destructive' : 'outline'}>
+            {down > 0 ? <TriangleAlert /> : <CheckCircle2 />}
+            {down > 0 ? `${down} caído${down > 1 ? 's' : ''}` : 'Sin incidencias'}
+          </Badge>
+        }
+        footerTitle={
+          <>
+            {operational} monitores operativos <Activity className="size-4" />
+          </>
+        }
+        footerDetail={`de ${total} configurados`}
       />
       <MonitorCard
-        label="Súper activos"
+        label="Monitores configurados"
         value={String(total)}
-        detail="Monitores configurados"
-        icon={<Zap className="size-4" />}
+        badge={
+          <Badge variant="outline">
+            <Zap />
+            {unknown > 0 ? `${unknown} sin datos` : 'Con datos'}
+          </Badge>
+        }
+        footerTitle={
+          <>
+            Actualización automática <RefreshCcw className="size-4" />
+          </>
+        }
+        footerDetail="estado y latencia de los últimos 30 s"
       />
       <MonitorCard
-        label="Incidentes"
+        label="Monitores caídos"
         value={String(down)}
-        detail="Monitores caídos"
-        icon={<ShieldAlert className="size-4" />}
+        badge={
+          <Badge variant={down > 0 ? 'destructive' : 'secondary'}>
+            <ShieldAlert />
+            {down > 0 ? 'Alerta activa' : 'Sin alertas'}
+          </Badge>
+        }
+        footerTitle={
+          <>
+            {down > 0 ? 'Requieren atención' : 'Todo en línea'}{' '}
+            <TriangleAlert className="size-4" />
+          </>
+        }
+        footerDetail="monitores con incidencias activas"
       />
       <MonitorCard
-        label="Latencia"
+        label="Latencia media"
         value={avgLatency !== null ? fmtMs(avgLatency) : '—'}
-        detail="Media de respuesta"
-        icon={<Radio className="size-4" />}
+        badge={
+          <Badge variant="outline">
+            <Timer />
+            {latencyCount} muestras
+          </Badge>
+        }
+        footerTitle={
+          <>
+            Media de respuesta <Radio className="size-4" />
+          </>
+        }
+        footerDetail="promedio de las latencias registradas"
       />
     </div>
   )
