@@ -7,12 +7,6 @@ export const STATUS_STYLE: Record<MonitorStatus, string> = {
   unknown: 'bg-muted text-muted-foreground',
 }
 
-export const STATUS_DOT: Record<MonitorStatus, string> = {
-  operational: 'bg-emerald-500',
-  down: 'bg-red-500',
-  unknown: 'bg-muted-foreground/50',
-}
-
 export const STATUS_LABEL: Record<MonitorStatus, string> = {
   operational: 'Operativo',
   down: 'Caído',

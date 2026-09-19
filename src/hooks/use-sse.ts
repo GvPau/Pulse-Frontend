@@ -25,6 +25,7 @@ function parseData(raw: string): unknown {
 export function useSse(handlers?: Handlers) {
   const [status, setStatus] = useState<StreamStatus>('connecting')
   const [lastEvent, setLastEvent] = useState<StreamEvent | null>(null)
+  const [lastActivityAt, setLastActivityAt] = useState<number | null>(null)
   const handlersRef = useRef(handlers)
 
   useEffect(() => {
@@ -36,13 +37,17 @@ export function useSse(handlers?: Handlers) {
     const url = token ? `${DEFAULT_URL}?token=${encodeURIComponent(token)}` : DEFAULT_URL
     const es = new EventSource(url)
 
-    es.onopen = () => setStatus('open')
+    es.onopen = () => {
+      setStatus('open')
+      setLastActivityAt(Date.now())
+    }
     es.onerror = () => setStatus('closed')
 
     const dispatch = (event: StreamEventName) => (e: MessageEvent) => {
       const data = parseData(e.data)
       const ev = { event, data } satisfies StreamEvent
       setLastEvent(ev)
+      setLastActivityAt(Date.now())
       handlersRef.current?.[event]?.(data)
     }
 
@@ -52,11 +57,12 @@ export function useSse(handlers?: Handlers) {
     es.onmessage = (e) => {
       const ev = { event: 'check.completed', data: parseData(e.data) } satisfies StreamEvent
       setLastEvent(ev)
+      setLastActivityAt(Date.now())
       handlersRef.current?.['check.completed']?.(ev.data)
     }
 
     return () => es.close()
   }, [])
 
-  return { status, lastEvent }
+  return { status, lastEvent, lastActivityAt }
 }

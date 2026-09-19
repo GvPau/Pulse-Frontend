@@ -4,13 +4,19 @@ import {
   SidebarGroup,
   SidebarGroupContent,
   SidebarMenu,
+  SidebarMenuBadge,
   SidebarMenuButton,
   SidebarMenuItem,
 } from '@/components/ui/sidebar'
 import { Link, useLocation } from 'react-router-dom'
 import type { ReactNode } from 'react'
 
-export type NavMainItem = { title: string; url: string; icon?: ReactNode }
+export type NavMainItem = {
+  title: string
+  url: string
+  icon?: ReactNode
+  badge?: ReactNode
+}
 
 export function NavMain({ items }: { items: NavMainItem[] }) {
   const { pathname } = useLocation()
@@ -47,6 +53,9 @@ export function NavMain({ items }: { items: NavMainItem[] }) {
               >
                 {item.icon}
                 <span>{item.title}</span>
+                {item.badge != null && (
+                  <SidebarMenuBadge>{item.badge}</SidebarMenuBadge>
+                )}
               </SidebarMenuButton>
             </SidebarMenuItem>
           ))}

@@ -23,7 +23,7 @@ export function AppShell() {
       <AppSidebar onLogout={logout} />
       <SidebarInset>
         <SiteHeader />
-        <div className="flex flex-1 flex-col gap-4 p-4 transition-all duration-200 ease-in-out group-data-[collapsible=icon]/sidebar-wrapper:h-auto">
+        <div className="mx-auto flex w-full max-w-[1180px] flex-1 flex-col gap-4 p-4 transition-all duration-200 ease-in-out group-data-[collapsible=icon]/sidebar-wrapper:h-auto">
           <Outlet />
         </div>
       </SidebarInset>

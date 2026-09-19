@@ -1,16 +1,15 @@
-import { useCallback } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { getToken } from '@/lib/auth'
-import type { StreamEventName } from '@/api/types'
 import { useSse } from '@/hooks/use-sse'
 
-const EVENT_LABELS: Record<StreamEventName, string> = {
-  'check.completed': 'check',
-  'incident.opened': 'incidente',
-  'incident.resolved': 'incidente resuelto',
-  'monitor.created': 'monitor creado',
-  'monitor.updated': 'monitor actualizado',
-  'monitor.deleted': 'monitor eliminado',
+function fmtElapsed(seconds: number) {
+  if (seconds < 5) return 'justo ahora'
+  if (seconds < 60) return `hace ${seconds} s`
+  const minutes = Math.floor(seconds / 60)
+  if (minutes < 60) return `hace ${minutes} min`
+  const hours = Math.floor(minutes / 60)
+  return `hace ${hours} h`
 }
 
 export function AppSseStatus() {
@@ -20,7 +19,7 @@ export function AppSseStatus() {
     void queryClient.invalidateQueries()
   }, [queryClient])
 
-  const { status, lastEvent } = useSse({
+  const { status, lastActivityAt } = useSse({
     'check.completed': invalidateAll,
     'incident.opened': invalidateAll,
     'incident.resolved': invalidateAll,
@@ -29,21 +28,39 @@ export function AppSseStatus() {
     'monitor.deleted': invalidateAll,
   })
 
-  const label = status === 'open' ? 'En vivo' : status === 'closed' ? 'Reconectando…' : 'Conectando…'
+  const [now, setNow] = useState(() => Date.now())
+
+  useEffect(() => {
+    if (status !== 'open') return
+    const id = setInterval(() => setNow(Date.now()), 1000)
+    return () => clearInterval(id)
+  }, [status])
+
+  const label =
+    status === 'open' ? 'En vivo' : status === 'closed' ? 'Reconectando…' : 'Conectando…'
   const dot =
     status === 'open'
-      ? 'bg-emerald-500'
+      ? 'bg-[--ok] animate-pulse'
       : status === 'closed'
-        ? 'bg-amber-500'
+        ? 'bg-[--warn]'
         : 'bg-muted-foreground/50'
 
-  const last = lastEvent ? EVENT_LABELS[lastEvent.event] : null
+  const activity =
+    status === 'open' && lastActivityAt != null
+      ? ` · última ${fmtElapsed(Math.max(0, Math.round((now - lastActivityAt) / 1000)))}`
+      : ''
 
   return (
-    <div className="flex items-center gap-2 text-xs text-muted-foreground" title={getToken() ? undefined : 'Sin sesión: el stream se conectará al iniciar sesión'}>
+    <div
+      className="flex items-center gap-2 text-xs text-muted-foreground"
+      title={getToken() ? undefined : 'Sin sesión: el stream se conectará al iniciar sesión'}
+      aria-live="off"
+    >
       <span className={`size-2 rounded-full ${dot}`} aria-hidden />
-      <span>{label}</span>
-      {last && <span className="hidden sm:inline">· {last}</span>}
+      <span>
+        {label}
+        {activity}
+      </span>
     </div>
   )
 }
