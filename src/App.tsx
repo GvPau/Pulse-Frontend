@@ -6,6 +6,7 @@ import { LoginPage } from '@/pages/login'
 import { MetricasPage } from '@/pages/metricas'
 import { MonitorDetailPage } from '@/pages/monitor-detail'
 import { MonitoresPage } from '@/pages/monitores'
+import { NuevoMonitorPage } from '@/pages/nuevo-monitor'
 import type { ReactNode } from 'react'
 
 function RequireAuth({ children }: { children: ReactNode }) {
@@ -28,6 +29,7 @@ export default function App() {
         >
           <Route index element={<Navigate to="/monitores" replace />} />
           <Route path="monitores" element={<MonitoresPage />} />
+          <Route path="monitores/nuevo" element={<NuevoMonitorPage />} />
           <Route path="monitores/:id" element={<MonitorDetailPage />} />
           <Route path="incidentes" element={<IncidentesPage />} />
           <Route path="metricas" element={<MetricasPage />} />

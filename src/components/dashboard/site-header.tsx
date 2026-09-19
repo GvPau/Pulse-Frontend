@@ -24,12 +24,29 @@ const MONITOR_DETAIL = /^\/monitores\/([^/]+)$/
 
 function HeaderTitle() {
   const { pathname } = useLocation()
-  const id = MONITOR_DETAIL.exec(pathname)?.[1] ?? null
+  const isNew = pathname === '/monitores/nuevo'
+  const id = isNew ? null : MONITOR_DETAIL.exec(pathname)?.[1] ?? null
   const { data } = useQuery({
     queryKey: ['monitors', id ?? ''],
     queryFn: () => getMonitor(id as string),
     enabled: id != null,
   })
+
+  if (isNew) {
+    return (
+      <Breadcrumb>
+        <BreadcrumbList>
+          <BreadcrumbItem>
+            <BreadcrumbLink render={<Link to="/monitores" />}>Monitores</BreadcrumbLink>
+          </BreadcrumbItem>
+          <BreadcrumbSeparator />
+          <BreadcrumbItem>
+            <BreadcrumbPage>Nuevo monitor</BreadcrumbPage>
+          </BreadcrumbItem>
+        </BreadcrumbList>
+      </Breadcrumb>
+    )
+  }
 
   if (!id) {
     return <h1 className="text-base font-medium">{TITLES[pathname] ?? 'Monitores'}</h1>

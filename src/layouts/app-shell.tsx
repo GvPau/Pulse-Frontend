@@ -4,6 +4,7 @@ import {
 } from '@/components/ui/sidebar'
 import { AppSidebar } from '@/components/dashboard/app-sidebar'
 import { SiteHeader } from '@/components/dashboard/site-header'
+import { Toaster } from '@/components/ui/sonner'
 import { useAuth } from '@/hooks/use-auth'
 import type { CSSProperties } from 'react'
 import { Outlet } from 'react-router-dom'
@@ -26,6 +27,7 @@ export function AppShell() {
         <div className="mx-auto flex w-full max-w-[1180px] flex-1 flex-col gap-4 p-4 transition-all duration-200 ease-in-out group-data-[collapsible=icon]/sidebar-wrapper:h-auto">
           <Outlet />
         </div>
+        <Toaster />
       </SidebarInset>
     </SidebarProvider>
   )
