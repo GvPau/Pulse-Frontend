@@ -29,7 +29,6 @@ export function AppSidebar(
   const { data: incidents } = useQuery({
     queryKey: ['incidents', 'active'],
     queryFn: () => listIncidents({ status: 'active' }),
-    refetchInterval: 30_000,
   })
   const activeIncidents = incidents?.pagination.total ?? 0
 

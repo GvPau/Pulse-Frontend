@@ -22,7 +22,7 @@ import {
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { deleteMonitor, listMonitors, updateMonitor } from '@/api/monitors'
-import type { MonitorWithStatus } from '@/api/types'
+import type { ListResponse, MonitorWithStatus } from '@/api/types'
 import { Button } from '@/components/ui/button'
 import {
   Card,
@@ -63,11 +63,22 @@ function RowActions({ row }: { row: MonitorRow }) {
 
   const deleteMonitorMutation = useMutation({
     mutationFn: () => deleteMonitor(row.id),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['monitors'] })
-      toast.success('Monitor eliminado')
+    onMutate: async () => {
+      await queryClient.cancelQueries({ queryKey: ['monitors'] })
+      const previous = queryClient.getQueryData<ListResponse<MonitorWithStatus>>(
+        ['monitors']
+      )
+      queryClient.setQueryData<ListResponse<MonitorWithStatus>>(
+        ['monitors'],
+        (old) => (old ? { ...old, data: old.data.filter((m) => m.id !== row.id) } : old)
+      )
+      return { previous }
     },
-    onError: () => toast.error('No se pudo eliminar el monitor'),
+    onSuccess: () => toast.success('Monitor eliminado'),
+    onError: (_err, _vars, ctx) => {
+      if (ctx?.previous) queryClient.setQueryData(['monitors'], ctx.previous)
+      toast.error('No se pudo eliminar el monitor')
+    },
   })
 
   return (
@@ -103,8 +114,28 @@ function ActiveSwitch({ row }: { row: MonitorRow }) {
   const updateMonitorMutation = useMutation({
     mutationFn: (active: boolean) =>
       updateMonitor(row.id, { ...toRequest(row), active }),
-    onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: ['monitors'] })
+    onMutate: async (active) => {
+      await queryClient.cancelQueries({ queryKey: ['monitors'] })
+      const previous = queryClient.getQueryData<ListResponse<MonitorWithStatus>>(
+        ['monitors']
+      )
+      queryClient.setQueryData<ListResponse<MonitorWithStatus>>(
+        ['monitors'],
+        (old) =>
+          old
+            ? {
+                ...old,
+                data: old.data.map((m) =>
+                  m.id === row.id ? { ...m, active } : m
+                ),
+              }
+            : old
+      )
+      return { previous }
+    },
+    onError: (_err, _vars, ctx) => {
+      if (ctx?.previous) queryClient.setQueryData(['monitors'], ctx.previous)
+      toast.error('No se pudo actualizar el monitor')
     },
   })
 
@@ -118,20 +149,15 @@ function ActiveSwitch({ row }: { row: MonitorRow }) {
 }
 
 export function DataTable() {
-  const [page, setPage] = useState(1)
-  const [pageSize] = useState(10)
   const [sorting, setSorting] = useState<SortingState>([])
   const [globalFilter, setGlobalFilter] = useState('')
 
   const { data } = useQuery({
-    queryKey: ['monitors', page, pageSize],
-    queryFn: () => listMonitors({ page, limit: pageSize }),
-    refetchInterval: 30_000,
+    queryKey: ['monitors'],
+    queryFn: () => listMonitors({ page: 1, limit: 50 }),
   })
 
   const monitors = data?.data ?? []
-  const totalRows = data?.pagination.total ?? 0
-  const totalPages = Math.max(1, Math.ceil(totalRows / pageSize))
 
   const columns = useMemo(
     () => [
@@ -170,7 +196,12 @@ export function DataTable() {
         header: () => <div className="w-full">Intervalo</div>,
       }),
       columnHelper.accessor('status', {
-        cell: ({ row }) => <StatusBadge status={row.original.status} />,
+        cell: ({ row }) => (
+          <StatusBadge
+            status={row.original.status}
+            active={row.original.active}
+          />
+        ),
         header: () => <div className="w-full">Estado</div>,
       }),
       columnHelper.accessor('last_check_at', {
@@ -207,13 +238,15 @@ export function DataTable() {
     getSortedRowModel: getSortedRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
     globalFilterFn: 'includesString',
-    manualPagination: false,
     getRowId: (row) => row.id,
     state: {
       sorting,
       globalFilter,
     },
   })
+
+  const { pageIndex } = table.getState().pagination
+  const pageCount = table.getPageCount()
 
   return (
     <Card className="@container/card border-0">
@@ -311,15 +344,15 @@ export function DataTable() {
             </div>
             <div className="flex items-center justify-end gap-2 py-3">
               <div className="text-sm text-muted-foreground">
-                Página {page} de {totalPages}
+                Página {pageIndex + 1} de {pageCount}
               </div>
               <div className="flex gap-1">
                 <Button
                   variant="outline"
                   className="h-8 w-8"
                   size="icon"
-                  onClick={() => setPage(1)}
-                  disabled={page === 1}
+                  onClick={() => table.setPageIndex(0)}
+                  disabled={pageIndex === 0}
                 >
                   <ChevronsLeft />
                   <span className="sr-only">Primera página</span>
@@ -328,8 +361,8 @@ export function DataTable() {
                   variant="outline"
                   className="size-8"
                   size="icon"
-                  onClick={() => setPage((p) => Math.max(1, p - 1))}
-                  disabled={page === 1}
+                  onClick={() => table.previousPage()}
+                  disabled={pageIndex === 0}
                 >
                   <ChevronLeft />
                   <span className="sr-only">Página anterior</span>
@@ -338,8 +371,8 @@ export function DataTable() {
                   variant="outline"
                   className="size-8"
                   size="icon"
-                  onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                  disabled={page === totalPages}
+                  onClick={() => table.nextPage()}
+                  disabled={pageIndex >= pageCount - 1}
                 >
                   <ChevronRight />
                   <span className="sr-only">Página siguiente</span>
@@ -348,8 +381,8 @@ export function DataTable() {
                   variant="outline"
                   className="size-8"
                   size="icon"
-                  onClick={() => setPage(totalPages)}
-                  disabled={page === totalPages}
+                  onClick={() => table.setPageIndex(pageCount - 1)}
+                  disabled={pageIndex >= pageCount - 1}
                 >
                   <ChevronsRight />
                   <span className="sr-only">Última página</span>

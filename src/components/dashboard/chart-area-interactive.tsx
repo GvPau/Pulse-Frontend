@@ -43,7 +43,6 @@ export function ChartAreaInteractive() {
   const monitorsQuery = useQuery({
     queryKey: ['monitors'],
     queryFn: () => listMonitors({ page: 1, limit: 50 }),
-    refetchInterval: 30_000,
   })
   const monitors = monitorsQuery.data?.data ?? []
 
@@ -55,7 +54,6 @@ export function ChartAreaInteractive() {
     queryKey: ['metrics', monitorId, window],
     queryFn: () => (monitorId ? getMetrics(monitorId, window) : Promise.resolve(null)),
     enabled: !!monitorId,
-    refetchInterval: 30_000,
   })
 
   const chartData = useMemo(

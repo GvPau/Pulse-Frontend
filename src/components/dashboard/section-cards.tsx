@@ -97,7 +97,6 @@ export function SectionCards() {
   const { data } = useQuery({
     queryKey: ['monitors'],
     queryFn: () => listMonitors({ page: 1, limit: 50 }),
-    refetchInterval: 30_000,
   })
 
   const monitors = data?.data ?? []

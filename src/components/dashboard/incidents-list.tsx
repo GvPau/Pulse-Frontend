@@ -45,13 +45,11 @@ export function IncidentsList() {
   const incidentsQuery = useQuery({
     queryKey: ['incidents'],
     queryFn: () => listIncidents({ page: 1, limit: 20 }),
-    refetchInterval: 30_000,
   })
 
   const monitorsQuery = useQuery({
     queryKey: ['monitors'],
     queryFn: () => listMonitors({ page: 1, limit: 50 }),
-    refetchInterval: 30_000,
   })
 
   const incidents = incidentsQuery.data?.data ?? []

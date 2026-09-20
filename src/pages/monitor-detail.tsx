@@ -304,7 +304,6 @@ export function MonitorDetailPage() {
     queryKey: ['monitors', id],
     queryFn: () => getMonitor(id!),
     enabled: !!id,
-    refetchInterval: 15_000,
   })
   const monitor = monitorQuery.data
 
@@ -312,7 +311,6 @@ export function MonitorDetailPage() {
     queryKey: ['metrics', id, window],
     queryFn: () => getMetrics(id!, window),
     enabled: !!id,
-    refetchInterval: 30_000,
   })
   const metrics = metricsQuery.data
 
@@ -325,14 +323,12 @@ export function MonitorDetailPage() {
         success: filter === 'failures' ? false : undefined,
       }),
     enabled: !!id,
-    refetchInterval: 30_000,
   })
 
   const incidentsQuery = useQuery({
     queryKey: ['incidents', id],
     queryFn: () => listIncidents({ monitor_id: id, page: 1, limit: 20 }),
     enabled: !!id,
-    refetchInterval: 30_000,
   })
   const incidents = incidentsQuery.data?.data ?? []
   const lastIncident = incidents[0] ?? null
@@ -340,9 +336,6 @@ export function MonitorDetailPage() {
   const updateMutation = useMutation({
     mutationFn: (body: MonitorRequest) => updateMonitor(id!, body),
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ['monitors', id] })
-      void queryClient.invalidateQueries({ queryKey: ['monitors'] })
-      void queryClient.invalidateQueries({ queryKey: ['metrics', id] })
       toast.success(monitor?.active ? 'Monitor pausado' : 'Monitor reanudado')
     },
     onError: () => toast.error('No se pudo actualizar el monitor'),
@@ -352,7 +345,6 @@ export function MonitorDetailPage() {
     mutationFn: () => deleteMonitor(id!),
     onSuccess: () => {
       setDeleteOpen(false)
-      void queryClient.invalidateQueries({ queryKey: ['monitors'] })
       void queryClient.invalidateQueries({ queryKey: ['incidents', id] })
       toast.success('Monitor eliminado')
       navigate('/monitores')

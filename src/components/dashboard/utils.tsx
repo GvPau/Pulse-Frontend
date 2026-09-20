@@ -1,22 +1,33 @@
 import { Badge } from '@/components/ui/badge'
 import type { MonitorRequest, MonitorStatus, MonitorWithStatus } from '@/api/types'
 
-export const STATUS_STYLE: Record<MonitorStatus, string> = {
+export type BadgeStatus = MonitorStatus | 'paused'
+
+export const STATUS_STYLE: Record<BadgeStatus, string> = {
   operational: 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300',
   down: 'bg-red-500/15 text-red-700 dark:text-red-300',
   unknown: 'bg-muted text-muted-foreground',
+  paused: 'bg-muted text-muted-foreground',
 }
 
-export const STATUS_LABEL: Record<MonitorStatus, string> = {
+export const STATUS_LABEL: Record<BadgeStatus, string> = {
   operational: 'Operativo',
   down: 'Caído',
   unknown: 'Sin datos',
+  paused: 'Pausado',
 }
 
-export function StatusBadge({ status }: { status: MonitorStatus }) {
+export function StatusBadge({
+  status,
+  active,
+}: {
+  status: MonitorStatus
+  active?: boolean
+}) {
+  const effective: BadgeStatus = active === false ? 'paused' : status
   return (
-    <Badge variant="secondary" className={STATUS_STYLE[status]}>
-      {STATUS_LABEL[status]}
+    <Badge variant="secondary" className={STATUS_STYLE[effective]}>
+      {STATUS_LABEL[effective]}
     </Badge>
   )
 }
