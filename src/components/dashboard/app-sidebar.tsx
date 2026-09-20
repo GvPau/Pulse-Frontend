@@ -57,7 +57,9 @@ export function AppSidebar(
               className="data-[slot=sidebar-menu-button]:p-1.5!"
               render={<Link to="/monitores" />}
             >
-              <Activity className="size-5!" />
+              <span className="flex size-6 items-center justify-center rounded-md bg-gradient-to-br from-primary to-chart-2 text-primary-foreground">
+                <Activity className="size-4!" />
+              </span>
               <span className="text-base font-semibold">Pulse</span>
             </SidebarMenuButton>
           </SidebarMenuItem>

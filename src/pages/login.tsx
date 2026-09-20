@@ -52,10 +52,13 @@ export function LoginPage() {
   return (
     <div className="grid min-h-svh lg:grid-cols-2">
       <div className="relative hidden flex-col p-10 lg:flex lg:border-r dark:border-r">
-        <div className="absolute inset-0 bg-primary/5" />
+        <div className="absolute inset-0 bg-gradient-to-br from-primary/15 via-primary/5 to-chart-2/10" />
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,color-mix(in_oklch,var(--primary)_25%,transparent),transparent_50%)]" />
         <div className="relative z-20 flex items-center gap-2 text-lg font-medium">
-          <Activity className="size-5" />
-          Pulse
+          <span className="flex size-8 items-center justify-center rounded-lg bg-gradient-to-br from-primary to-chart-2 text-primary-foreground shadow-sm">
+            <Activity className="size-5" />
+          </span>
+          <span className="font-semibold">Pulse</span>
         </div>
         <div className="relative z-20 mt-auto">
           <blockquote className="max-w-md text-balance text-2xl leading-snug font-medium">
