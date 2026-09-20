@@ -2,6 +2,7 @@ import { useMemo } from 'react'
 import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from 'recharts'
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart'
 import type { ChartConfig } from '@/components/ui/chart'
+import type { MetricsWindow } from '@/api/types'
 
 const config = {
   latency: {
@@ -10,11 +11,25 @@ const config = {
   },
 } satisfies ChartConfig
 
+const pad2 = (n: number) => String(n).padStart(2, '0')
+
+function formatTick(epochMs: number, window: MetricsWindow) {
+  const date = new Date(epochMs)
+  if (window === '24h' || window === '7d') {
+    return `${pad2(date.getDate())}/${pad2(date.getMonth() + 1)} ${pad2(
+      date.getHours()
+    )}:${pad2(date.getMinutes())}`
+  }
+  return `${pad2(date.getDate())}/${pad2(date.getMonth() + 1)}`
+}
+
 export function LatencyChart({
   data,
-  height = 220,
+  window,
+  height = 160,
 }: {
-  data: { time: string; latency: number }[]
+  data: { time: number; latency: number }[]
+  window: MetricsWindow
   height?: number
 }) {
   const chartData = useMemo(
@@ -30,25 +45,33 @@ export function LatencyChart({
     >
       <AreaChart
         data={chartData}
-        margin={{ left: 0, right: 12, top: 12 }}
+        margin={{ left: 0, right: 12, top: 12, bottom: 0 }}
       >
         <defs>
           <linearGradient id="fillLatency" x1="0" y1="0" x2="0" y2="1">
             <stop
-              offset="5%"
+              offset="0%"
               stopColor="var(--color-latency)"
-              stopOpacity={0.8}
+              stopOpacity={0.18}
             />
             <stop
-              offset="95%"
+              offset="100%"
               stopColor="var(--color-latency)"
-              stopOpacity={0.1}
+              stopOpacity={0}
             />
           </linearGradient>
         </defs>
-        <CartesianGrid vertical={false} />
+        <CartesianGrid
+          vertical={false}
+          stroke="var(--border)"
+          strokeOpacity={0.6}
+        />
         <XAxis
           dataKey="time"
+          type="number"
+          scale="time"
+          domain={['dataMin', 'dataMax']}
+          tickFormatter={(v: number) => formatTick(v, window)}
           tickLine={false}
           axisLine={false}
           tickMargin={8}
@@ -64,6 +87,15 @@ export function LatencyChart({
           cursor={false}
           content={
             <ChartTooltipContent
+              labelFormatter={(epoch) => {
+                const ts =
+                  typeof epoch === 'number'
+                    ? epoch
+                    : typeof epoch === 'string'
+                      ? Number(epoch)
+                      : Number(epoch)
+                return new Date(ts).toLocaleString('es-ES')
+              }}
               formatter={(value) => [
                 `${Math.round(Number(value))} ms`,
                 'Latencia',
@@ -76,7 +108,7 @@ export function LatencyChart({
           type="natural"
           fill="url(#fillLatency)"
           stroke="var(--color-latency)"
-          stackId="a"
+          strokeWidth={1.75}
         />
       </AreaChart>
     </ChartContainer>

@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
 import {
@@ -8,6 +8,8 @@ import {
   getFilteredRowModel,
   getPaginationRowModel,
   getSortedRowModel,
+  type Header,
+  type SortingFn,
   type SortingState,
   useReactTable,
 } from '@tanstack/react-table'
@@ -17,7 +19,10 @@ import {
   ChevronRight,
   ChevronsLeft,
   ChevronsRight,
+  ChevronsUpDown,
+  ChevronUp,
   EllipsisVertical,
+  Search,
   Trash2,
 } from 'lucide-react'
 import { toast } from 'sonner'
@@ -25,18 +30,12 @@ import { deleteMonitor, listMonitors, updateMonitor } from '@/api/monitors'
 import type { ListResponse, MonitorWithStatus } from '@/api/types'
 import { Button } from '@/components/ui/button'
 import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card'
-import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import { Input } from '@/components/ui/input'
 import { Switch } from '@/components/ui/switch'
 import {
   Table,
@@ -46,15 +45,123 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
+import { cn } from 'cn'
 import {
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-} from '@/components/ui/tabs'
-import { fmtTime, StatusBadge, toRequest } from './utils'
+  fmtInterval,
+  fmtMs,
+  fmtRelative,
+  fmtTime,
+  fmtUptime,
+  StatusBadge,
+  toRequest,
+  type BadgeStatus,
+} from './utils'
+import { Segmented, SegmentedItem } from './segmented'
 
-type MonitorRow = { [K in keyof MonitorWithStatus]: MonitorWithStatus[K] }
+type MonitorRow = MonitorWithStatus
+type Beat = 'ok' | 'down' | 'none'
+type Segment = 'all' | 'down'
+
+const STRIP_LEN = 30
+const PAGE_SIZE = 10
+
+const STATUS_RANK: Record<BadgeStatus, number> = {
+  down: 0,
+  operational: 1,
+  unknown: 2,
+  paused: 3,
+}
+
+const effectiveStatus = (m: MonitorWithStatus): BadgeStatus =>
+  m.active ? m.status : 'paused'
+
+const statusSortingFn: SortingFn<MonitorRow> = (rowA, rowB) =>
+  STATUS_RANK[effectiveStatus(rowA.original)] -
+  STATUS_RANK[effectiveStatus(rowB.original)]
+
+const fmtCount = (n: number) => `${n} ${n === 1 ? 'monitor' : 'monitores'}`
+
+function HeartbeatStrip({
+  beats,
+  paused,
+}: {
+  beats?: MonitorRow['beats']
+  paused: boolean
+}) {
+  const cells: Beat[] = []
+  for (const beat of beats ?? []) cells.push(beat === 'down' ? 'down' : 'ok')
+  while (cells.length < STRIP_LEN) cells.unshift('none')
+  const normalized = cells.slice(-STRIP_LEN)
+  const last = normalized.length - 1
+
+  return (
+    <div
+      role="img"
+      aria-label="Últimas comprobaciones"
+      title="Últimas comprobaciones"
+      className="flex h-6 w-fit items-end gap-[2px]"
+    >
+      {normalized.map((beat, index) => {
+        if (paused) {
+          return (
+            <span
+              key={index}
+              className="h-[35%] w-[3px] rounded-full bg-muted-foreground/30"
+            />
+          )
+        }
+        if (beat === 'none') {
+          return (
+            <span
+              key={index}
+              className="h-[35%] w-[3px] rounded-full bg-border"
+            />
+          )
+        }
+        const solid = index === last
+        return (
+          <span
+            key={index}
+            className={cn(
+              'h-full w-[3px] rounded-full',
+              beat === 'ok'
+                ? solid
+                  ? 'bg-ok'
+                  : 'bg-ok/40'
+                : solid
+                  ? 'bg-down'
+                  : 'bg-down/40'
+            )}
+          />
+        )
+      })}
+    </div>
+  )
+}
+
+function SortableHeader({ header }: { header: Header<MonitorRow, unknown> }) {
+  const sorted = header.column.getIsSorted()
+  if (!header.column.getCanSort()) {
+    return flexRender(header.column.columnDef.header, header.getContext())
+  }
+  return (
+    <button
+      type="button"
+      onClick={header.column.getToggleSortingHandler()}
+      data-sorted={sorted ? '' : undefined}
+      className="group inline-flex max-w-full items-center gap-1 font-medium hover:text-foreground"
+    >
+      {flexRender(header.column.columnDef.header, header.getContext())}
+      {sorted === 'asc' ? (
+        <ChevronUp className="size-3 opacity-100" />
+      ) : sorted === 'desc' ? (
+        <ChevronDown className="size-3 opacity-100" />
+      ) : (
+        <ChevronsUpDown className="size-3 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100" />
+      )}
+    </button>
+  )
+}
 
 const columnHelper = createColumnHelper<MonitorRow>()
 
@@ -151,6 +258,13 @@ function ActiveSwitch({ row }: { row: MonitorRow }) {
 export function DataTable() {
   const [sorting, setSorting] = useState<SortingState>([])
   const [globalFilter, setGlobalFilter] = useState('')
+  const [segment, setSegment] = useState<Segment>('all')
+  const [now, setNow] = useState(() => Date.now())
+
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 30_000)
+    return () => clearInterval(id)
+  }, [])
 
   const { data } = useQuery({
     queryKey: ['monitors'],
@@ -158,78 +272,106 @@ export function DataTable() {
   })
 
   const monitors = data?.data ?? []
+  const totalCount = monitors.length
+  const downCount = monitors.filter((m) => effectiveStatus(m) === 'down').length
+  const visibleData =
+    segment === 'down'
+      ? monitors.filter((m) => effectiveStatus(m) === 'down')
+      : monitors
 
   const columns = useMemo(
     () => [
-      columnHelper.accessor('name', {
-        header: () => <div className="w-full">Nombre</div>,
+      columnHelper.accessor((m) => effectiveStatus(m), {
+        id: 'status',
+        header: () => 'Estado',
+        sortingFn: statusSortingFn,
+        enableGlobalFilter: false,
         cell: ({ row }) => (
-          <Link
-            to={`/monitores/${row.original.id}`}
-            className="font-medium underline-offset-4 hover:underline"
+          <StatusBadge status={row.original.status} active={row.original.active} />
+        ),
+      }),
+      columnHelper.accessor((m) => m.name, {
+        id: 'name',
+        header: () => 'Monitor',
+        cell: ({ row }) => (
+          <div className="flex max-w-[320px] flex-col">
+            <Link
+              to={`/monitores/${row.original.id}`}
+              className="truncate font-medium underline-offset-4 hover:underline"
+            >
+              {row.original.name}
+            </Link>
+            <span className="truncate font-mono text-xs text-muted-foreground">
+              {row.original.url}
+            </span>
+          </div>
+        ),
+      }),
+      columnHelper.display({
+        id: 'beats',
+        header: () => <span className="sr-only">Rendimiento</span>,
+        enableGlobalFilter: false,
+        cell: ({ row }) => (
+          <HeartbeatStrip beats={row.original.beats} paused={!row.original.active} />
+        ),
+      }),
+      columnHelper.accessor((m) => m.uptime, {
+        id: 'uptime',
+        header: () => 'Uptime 24 h',
+        enableGlobalFilter: false,
+        cell: ({ getValue }) => (
+          <span className="tabular-nums">{fmtUptime(getValue<number>())}</span>
+        ),
+      }),
+      columnHelper.accessor((m) => m.avg_response_ms, {
+        id: 'latency',
+        header: () => 'Latencia',
+        enableGlobalFilter: false,
+        cell: ({ getValue }) => (
+          <span className="tabular-nums">{fmtMs(getValue<number>())}</span>
+        ),
+      }),
+      columnHelper.accessor((m) => m.interval_seconds, {
+        id: 'interval',
+        header: () => 'Intervalo',
+        enableGlobalFilter: false,
+        cell: ({ getValue }) => (
+          <span className="tabular-nums">{fmtInterval(getValue<number>())}</span>
+        ),
+      }),
+      columnHelper.accessor((m) => m.last_check_at, {
+        id: 'last_check_at',
+        header: () => 'Última',
+        enableSorting: false,
+        enableGlobalFilter: false,
+        cell: ({ row }) => (
+          <span
+            className="text-muted-foreground"
+            title={fmtTime(row.original.last_check_at)}
           >
-            {row.original.name}
-          </Link>
+            {fmtRelative(row.original.last_check_at, now)}
+          </span>
         ),
       }),
-      columnHelper.accessor('url', {
-        cell: ({ row }) => {
-          const cellValue = row.getValue<string>('url')
-          return (
-            <div className="max-w-[240px] truncate font-medium">
-              {cellValue}
-            </div>
-          )
-        },
-        header: () => <div className="w-full">URL</div>,
+      columnHelper.accessor((m) => m.active, {
+        id: 'active',
+        header: () => 'Activo',
         enableSorting: false,
-      }),
-      columnHelper.accessor('interval_seconds', {
-        cell: ({ row }) => {
-          const interval = row.getValue<number>('interval_seconds')
-          return (
-            <div className="text-center tabular-nums">
-              {interval >= 60 ? `${Math.round(interval / 60)} m` : `${interval} s`}
-            </div>
-          )
-        },
-        header: () => <div className="w-full">Intervalo</div>,
-      }),
-      columnHelper.accessor('status', {
-        cell: ({ row }) => (
-          <StatusBadge
-            status={row.original.status}
-            active={row.original.active}
-          />
-        ),
-        header: () => <div className="w-full">Estado</div>,
-      }),
-      columnHelper.accessor('last_check_at', {
-        cell: ({ row }) => {
-          const cellValue = row.original.last_check_at
-          return (
-            <div className="text-muted-foreground">
-              {fmtTime(cellValue)}
-            </div>
-          )
-        },
-        header: () => <div className="w-full">Actualizado</div>,
-        enableSorting: false,
-      }),
-      columnHelper.accessor('active', {
+        enableGlobalFilter: false,
         cell: ({ row }) => <ActiveSwitch row={row.original} />,
-        header: () => <div className="w-full">Activo</div>,
       }),
       columnHelper.display({
         id: 'actions',
+        header: () => <span className="sr-only">Acciones</span>,
+        enableGlobalFilter: false,
         cell: ({ row }) => <RowActions row={row.original} />,
       }),
     ],
-    []
+    [now]
   )
 
   const table = useReactTable({
-    data: monitors,
+    data: visibleData,
     columns,
     onSortingChange: setSorting,
     onGlobalFilterChange: setGlobalFilter,
@@ -239,6 +381,10 @@ export function DataTable() {
     getFilteredRowModel: getFilteredRowModel(),
     globalFilterFn: 'includesString',
     getRowId: (row) => row.id,
+    initialState: {
+      sorting: [{ id: 'status', desc: false }],
+      pagination: { pageSize: PAGE_SIZE },
+    },
     state: {
       sorting,
       globalFilter,
@@ -247,156 +393,149 @@ export function DataTable() {
 
   const { pageIndex } = table.getState().pagination
   const pageCount = table.getPageCount()
+  const rowCount = table.getFilteredRowModel().rows.length
+
+  const emptyMessage =
+    monitors.length === 0
+      ? 'No hay monitores todavía.'
+      : segment === 'down'
+        ? 'Sin monitores caídos por el momento.'
+        : 'Sin resultados para la búsqueda.'
 
   return (
-    <Card className="@container/card border-0">
-      <CardHeader>
-        <CardTitle className="text-2xl">Monitores</CardTitle>
-        <CardDescription>
-          Visualiza y gestiona los monitores de tu panel.
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        <Tabs defaultValue="all">
-          <div className="flex items-center justify-between gap-2">
-            <TabsList className="grid w-full grid-cols-1 sm:w-auto sm:grid-cols-2">
-              <TabsTrigger value="all">Todos</TabsTrigger>
-              <TabsTrigger value="down">Caídos</TabsTrigger>
-            </TabsList>
-            <div className="ml-auto flex items-center gap-2">
-              <input
-                value={globalFilter}
-                onChange={(e) => setGlobalFilter(e.target.value)}
-                placeholder="Buscar..."
-                aria-label="Buscar monitores"
-                className="h-9 w-full rounded-md border border-input bg-transparent px-3 text-sm shadow-xs outline-none placeholder:text-muted-foreground disabled:cursor-not-allowed disabled:opacity-50 sm:w-48"
-              />
+    <div className="rounded-lg border bg-card">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b px-4 py-3">
+        <Segmented label="Filtrar monitores">
+          {(Object.keys({ all: '', down: '' }) as Segment[]).map((tab) => {
+            const active = segment === tab
+            const count = tab === 'all' ? totalCount : downCount
+            return (
+              <SegmentedItem
+                key={tab}
+                active={active}
+                onClick={() => {
+                  setSegment(tab)
+                  table.setPageIndex(0)
+                }}
+              >
+                {tab === 'all' ? 'Todos' : 'Caídos'}
+                <span className="text-xs tabular-nums text-muted-foreground">
+                  {count}
+                </span>
+              </SegmentedItem>
+            )
+          })}
+        </Segmented>
+        <div className="relative w-full sm:min-w-52 sm:max-w-64">
+          <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            value={globalFilter}
+            onChange={(e) => {
+              setGlobalFilter(e.target.value)
+              table.setPageIndex(0)
+            }}
+            placeholder="Buscar por nombre o URL…"
+            aria-label="Buscar monitores"
+            className="w-full pl-8"
+          />
+        </div>
+      </div>
+
+      <Table className="md:[&_td]:px-4">
+        <TableHeader>
+          {table.getHeaderGroups().map((headerGroup) => (
+            <TableRow key={headerGroup.id} className="hover:bg-transparent">
+              {headerGroup.headers.map((header) => (
+                <TableHead key={header.id} className="h-10 text-xs text-muted-foreground md:px-4">
+                  <SortableHeader header={header} />
+                </TableHead>
+              ))}
+            </TableRow>
+          ))}
+        </TableHeader>
+        <TableBody>
+          {rowCount > 0 ? (
+            table.getRowModel().rows.map((row) => (
+              <TableRow
+                key={row.id}
+                className={cn(
+                  effectiveStatus(row.original) === 'down'
+                    ? 'bg-down/5 hover:bg-down/10'
+                    : 'hover:bg-muted/50'
+                )}
+              >
+                {row.getVisibleCells().map((cell) => (
+                  <TableCell key={cell.id} className="py-2.5">
+                    {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                  </TableCell>
+                ))}
+              </TableRow>
+            ))
+          ) : (
+            <TableRow>
+              <TableCell
+                colSpan={columns.length}
+                className="h-24 text-center text-muted-foreground"
+              >
+                {emptyMessage}
+              </TableCell>
+            </TableRow>
+          )}
+        </TableBody>
+      </Table>
+
+      <div className="flex items-center justify-between gap-4 border-t px-4 py-2.5">
+        <p className="text-sm text-muted-foreground">{fmtCount(rowCount)}</p>
+        {pageCount > 1 && (
+          <div className="flex items-center gap-2">
+            <div className="text-sm text-muted-foreground">
+              Página {pageIndex + 1} de {pageCount}
+            </div>
+            <div className="flex gap-1">
+              <Button
+                variant="outline"
+                className="size-8"
+                size="icon"
+                onClick={() => table.setPageIndex(0)}
+                disabled={pageIndex === 0}
+              >
+                <ChevronsLeft />
+                <span className="sr-only">Primera página</span>
+              </Button>
+              <Button
+                variant="outline"
+                className="size-8"
+                size="icon"
+                onClick={() => table.previousPage()}
+                disabled={pageIndex === 0}
+              >
+                <ChevronLeft />
+                <span className="sr-only">Página anterior</span>
+              </Button>
+              <Button
+                variant="outline"
+                className="size-8"
+                size="icon"
+                onClick={() => table.nextPage()}
+                disabled={pageIndex >= pageCount - 1}
+              >
+                <ChevronRight />
+                <span className="sr-only">Página siguiente</span>
+              </Button>
+              <Button
+                variant="outline"
+                className="size-8"
+                size="icon"
+                onClick={() => table.setPageIndex(pageCount - 1)}
+                disabled={pageIndex >= pageCount - 1}
+              >
+                <ChevronsRight />
+                <span className="sr-only">Última página</span>
+              </Button>
             </div>
           </div>
-          <TabsContent value="all">
-            <div className="overflow-hidden rounded-md border">
-              <Table className="md:[& td]:p-4">
-                <TableHeader>
-                  {table.getHeaderGroups().map((headerGroup) => (
-                    <TableRow key={headerGroup.id} className="hover:bg-transparent">
-                      {headerGroup.headers.map((header) => (
-                        <TableHead
-                          key={header.id}
-                          className="md:px-4"
-                          style={{ width: header.getSize() }}
-                        >
-                          {header.isPlaceholder ? null : (
-                            <div>
-                              {header.column.getCanSort() &&
-                              header.column.id !== 'last_check_at' ? (
-                                <button
-                                  className="flex items-center gap-1 hover:text-foreground"
-                                  onClick={header.column.getToggleSortingHandler()}
-                                >
-                                  {flexRender(
-                                    header.column.columnDef.header,
-                                    header.getContext()
-                                  )}
-                                  <ChevronDown className="size-3" />
-                                </button>
-                              ) : (
-                                flexRender(
-                                  header.column.columnDef.header,
-                                  header.getContext()
-                                )
-                              )}
-                            </div>
-                          )}
-                        </TableHead>
-                      ))}
-                    </TableRow>
-                  ))}
-                </TableHeader>
-                <TableBody>
-                  {table.getRowModel().rows.length > 0 ? (
-                    table.getRowModel().rows.map((row) => (
-                      <TableRow
-                        key={row.id}
-                        className="odd:bg-muted/50 data-[state=selected]:bg-muted"
-                      >
-                        {row.getVisibleCells().map((cell) => (
-                          <TableCell key={cell.id} className="py-2">
-                            {flexRender(
-                              cell.column.columnDef.cell,
-                              cell.getContext()
-                            )}
-                          </TableCell>
-                        ))}
-                      </TableRow>
-                    ))
-                  ) : (
-                    <TableRow>
-                      <TableCell
-                        colSpan={columns.length}
-                        className="h-24 text-center text-muted-foreground"
-                      >
-                        No hay monitores todavía.
-                      </TableCell>
-                    </TableRow>
-                  )}
-                </TableBody>
-              </Table>
-            </div>
-            <div className="flex items-center justify-end gap-2 py-3">
-              <div className="text-sm text-muted-foreground">
-                Página {pageIndex + 1} de {pageCount}
-              </div>
-              <div className="flex gap-1">
-                <Button
-                  variant="outline"
-                  className="h-8 w-8"
-                  size="icon"
-                  onClick={() => table.setPageIndex(0)}
-                  disabled={pageIndex === 0}
-                >
-                  <ChevronsLeft />
-                  <span className="sr-only">Primera página</span>
-                </Button>
-                <Button
-                  variant="outline"
-                  className="size-8"
-                  size="icon"
-                  onClick={() => table.previousPage()}
-                  disabled={pageIndex === 0}
-                >
-                  <ChevronLeft />
-                  <span className="sr-only">Página anterior</span>
-                </Button>
-                <Button
-                  variant="outline"
-                  className="size-8"
-                  size="icon"
-                  onClick={() => table.nextPage()}
-                  disabled={pageIndex >= pageCount - 1}
-                >
-                  <ChevronRight />
-                  <span className="sr-only">Página siguiente</span>
-                </Button>
-                <Button
-                  variant="outline"
-                  className="size-8"
-                  size="icon"
-                  onClick={() => table.setPageIndex(pageCount - 1)}
-                  disabled={pageIndex >= pageCount - 1}
-                >
-                  <ChevronsRight />
-                  <span className="sr-only">Última página</span>
-                </Button>
-              </div>
-            </div>
-          </TabsContent>
-          <TabsContent value="down">
-            <p className="text-sm text-muted-foreground">
-              Sin monitores caídos por el momento.
-            </p>
-          </TabsContent>
-        </Tabs>
-      </CardContent>
-    </Card>
+        )}
+      </div>
+    </div>
   )
 }

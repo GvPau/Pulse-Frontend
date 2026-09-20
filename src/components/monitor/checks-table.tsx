@@ -1,5 +1,5 @@
-import { format, formatDistanceToNowStrict } from 'date-fns'
-import { es } from 'date-fns/locale'
+import { format } from 'date-fns'
+import { useEffect, useState } from 'react'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import type { Check } from '@/api/types'
 import { Badge } from '@/components/ui/badge'
@@ -14,8 +14,9 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { Skeleton } from '@/components/ui/skeleton'
-import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import { cn } from 'cn'
+import { Segmented, SegmentedItem } from '@/components/dashboard/segmented'
+import { fmtRelative } from '@/components/dashboard/utils'
 
 export type CheckFilter = 'all' | 'failures'
 
@@ -42,7 +43,7 @@ function CheckLatencyMeter({
         <div
           className={cn(
             'h-full rounded-full',
-            ok ? 'bg-[--ok]' : 'bg-[--down]'
+            ok ? 'bg-foreground/35' : 'bg-down/70'
           )}
           style={{ width: `${width}%` }}
         />
@@ -75,6 +76,13 @@ export function ChecksTable({
   onFilterChange?: (filter: CheckFilter) => void
   onPageChange?: (page: number) => void
 }) {
+  const [now, setNow] = useState(() => Date.now())
+
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 30_000)
+    return () => clearInterval(id)
+  }, [])
+
   const pageCount = Math.max(1, Math.ceil(total / pageSize))
   const data = checks ?? []
   const hasData = data.length > 0
@@ -89,56 +97,62 @@ export function ChecksTable({
 
   return (
     <Card className="flex flex-col">
-      <CardHeader className="pb-2">
+      <CardHeader className="px-6 pt-4 pb-2">
         <div className="flex w-full flex-wrap items-center justify-between gap-2">
           <CardTitle>Comprobaciones</CardTitle>
           {onFilterChange ? (
             <CardAction>
-              <ToggleGroup
-                variant="outline"
-                size="sm"
-                value={[filter]}
-                onValueChange={(value) => {
-                  const next = value?.[0]
-                  if (next) onFilterChange(next as CheckFilter)
-                }}
-              >
-                <ToggleGroupItem value="all" className="h-7 px-2.5">
+              <Segmented label="Filtrar comprobaciones">
+                <SegmentedItem
+                  active={filter === 'all'}
+                  onClick={() => onFilterChange('all')}
+                >
                   Todas
-                </ToggleGroupItem>
-                <ToggleGroupItem value="failures" className="h-7 px-2.5">
+                </SegmentedItem>
+                <SegmentedItem
+                  active={filter === 'failures'}
+                  onClick={() => onFilterChange('failures')}
+                >
                   Solo fallos
-                </ToggleGroupItem>
-              </ToggleGroup>
+                </SegmentedItem>
+              </Segmented>
             </CardAction>
           ) : null}
         </div>
       </CardHeader>
 
-      <CardContent className="py-0">
+      <CardContent className="border-t p-0">
         <Table>
           <TableHeader className="sticky top-[52px] z-10 bg-card">
             <TableRow>
-              <TableHead>Comprobación</TableHead>
-              <TableHead className="text-right">Código</TableHead>
-              <TableHead className="text-right">Latencia</TableHead>
-              <TableHead className="text-right">Resultado</TableHead>
+              <TableHead className="text-xs font-medium text-muted-foreground">
+                Comprobación
+              </TableHead>
+              <TableHead className="text-xs font-medium text-muted-foreground text-right">
+                Código
+              </TableHead>
+              <TableHead className="text-xs font-medium text-muted-foreground text-right">
+                Latencia
+              </TableHead>
+              <TableHead className="text-xs font-medium text-muted-foreground text-right">
+                Resultado
+              </TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {loading && !hasData
               ? Array.from({ length: 6 }).map((_, index) => (
                   <TableRow key={index}>
-                    <TableCell>
+                    <TableCell className="py-1.5">
                       <Skeleton className="h-4 w-36" />
                     </TableCell>
-                    <TableCell>
+                    <TableCell className="py-1.5">
                       <Skeleton className="ml-auto h-4 w-8" />
                     </TableCell>
-                    <TableCell>
+                    <TableCell className="py-1.5">
                       <Skeleton className="ml-auto h-4 w-20" />
                     </TableCell>
-                    <TableCell>
+                    <TableCell className="py-1.5">
                       <Skeleton className="ml-auto h-4 w-16" />
                     </TableCell>
                   </TableRow>
@@ -151,36 +165,33 @@ export function ChecksTable({
                   const p95 = scope?.p95 ?? 0
                   return (
                     <TableRow key={check.id}>
-                      <TableCell className="py-2">
+                      <TableCell className="py-1.5">
                         <div className="text-sm tabular-nums">
                           <span className="capitalize">
-                            {formatDistanceToNowStrict(checkedAt, {
-                              addSuffix: true,
-                              locale: es,
-                            })}
+                            {fmtRelative(check.checked_at, now)}
                           </span>
                         </div>
                         <div className="text-xs text-muted-foreground tabular-nums">
                           {format(checkedAt, 'HH:mm:ss')}
                         </div>
                       </TableCell>
-                      <TableCell className="py-2 text-right tabular-nums">
+                      <TableCell className="py-1.5 text-right tabular-nums">
                         {check.status_code ?? '—'}
                       </TableCell>
-                      <TableCell className="py-2" style={{ textAlign: 'right' }}>
+                      <TableCell className="py-1.5" style={{ textAlign: 'right' }}>
                         <CheckLatencyMeter
                           ms={check.response_time_ms ?? 0}
                           ok={ok}
                           scope={p95}
                         />
                       </TableCell>
-                      <TableCell className="py-2 text-right">
+                      <TableCell className="py-1.5 text-right">
                         {ok ? (
                           <Badge variant="secondary">Correcta</Badge>
                         ) : (
                           <Badge
                             variant="secondary"
-                            className="border-[--down]/25 bg-[--down]/10 text-[--down]"
+                            className="border-down/25 bg-down/10 text-down"
                           >
                             Fallo
                           </Badge>
@@ -201,7 +212,7 @@ export function ChecksTable({
         </Table>
       </CardContent>
 
-      <CardContent className="flex items-center justify-between py-3">
+      <CardContent className="flex items-center justify-between border-t px-6 py-3">
         <span className="text-sm text-muted-foreground tabular-nums">
           {total > 0 ? `${checks?.length ?? 0} de ${total} comprobaciones` : 'Sin comprobaciones'}
         </span>

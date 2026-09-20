@@ -127,12 +127,14 @@ function Field({
 
 function Section({
   check,
+  tone = "ok",
   title,
   desc,
   last,
   children,
 }: {
   check: boolean
+  tone?: "ok" | "neutral"
   title: string
   desc: string
   last?: boolean
@@ -144,15 +146,18 @@ function Section({
         <span
           className={cn(
             "grid size-5 shrink-0 place-items-center rounded-full border-[1.5px] transition-colors duration-200",
-            check ? "border-ok/45 bg-ok/10" : "border-border bg-card"
+            tone === "ok" && check
+              ? "border-ok/45 bg-ok/10"
+              : "border-input bg-card"
           )}
         >
           <CheckIcon
             strokeWidth={3}
             aria-hidden
             className={cn(
-              "size-3 text-ok transition-[opacity,transform] duration-200",
-              check ? "opacity-100" : "scale-50 opacity-0"
+              "size-3 transition-[opacity,transform] duration-200",
+              check ? "opacity-100" : "scale-50 opacity-0",
+              tone === "ok" ? "text-ok" : "text-muted-foreground"
             )}
           />
         </span>
@@ -412,51 +417,56 @@ export function NuevoMonitorPage() {
                 )}
               </Field>
 
-              <Field
-                label="Nombre"
-                htmlFor="nombre"
-                required
-                error={
-                  nombreError ? "Ponle un nombre para reconocerlo." : null
-                }
-                hint="Lo verás en la lista y en las alertas."
-              >
-                <Input
-                  id="nombre"
-                  type="text"
-                  placeholder="API de pagos"
-                  value={nombre}
-                  aria-invalid={nombreError || undefined}
-                  onChange={(e) => {
-                    setNombre(e.target.value)
-                    setTouched((t) => ({ ...t, nombre: true }))
-                  }}
-                  className="h-8"
-                />
-              </Field>
+              <div className="grid gap-4 min-[420px]:grid-cols-[minmax(0,1fr)_160px]">
+                <Field
+                  label="Nombre"
+                  htmlFor="nombre"
+                  required
+                  error={
+                    nombreError ? "Ponle un nombre para reconocerlo." : null
+                  }
+                  hint="Lo verás en la lista y en las alertas."
+                  className="mb-0"
+                >
+                  <Input
+                    id="nombre"
+                    type="text"
+                    placeholder="API de pagos"
+                    value={nombre}
+                    aria-invalid={nombreError || undefined}
+                    onChange={(e) => {
+                      setNombre(e.target.value)
+                      setTouched((t) => ({ ...t, nombre: true }))
+                    }}
+                    className="h-8"
+                  />
+                </Field>
 
-              <Field
-                label="Método"
-                htmlFor="metodo"
-                hint="GET sirve para casi todo."
-              >
-                <Select value={metodo} onValueChange={(v) => v != null && setMetodo(v)}>
-                  <SelectTrigger id="metodo" className="w-full">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {METODOS.map((m) => (
-                      <SelectItem key={m} value={m}>
-                        {m}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </Field>
+                <Field
+                  label="Método"
+                  htmlFor="metodo"
+                  hint="GET sirve para casi todo."
+                  className="mb-0"
+                >
+                  <Select value={metodo} onValueChange={(v) => v != null && setMetodo(v)}>
+                    <SelectTrigger id="metodo" className="w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {METODOS.map((m) => (
+                        <SelectItem key={m} value={m}>
+                          {m}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </Field>
+              </div>
             </Section>
 
             <Section
               check={timeOk}
+              tone="neutral"
               title="Cada cuánto"
               desc="Más frecuencia detecta antes las caídas y consume más cuota."
             >
@@ -517,6 +527,7 @@ export function NuevoMonitorPage() {
 
             <Section
               check
+              tone="neutral"
               last
               title="Qué cuenta como caída"
               desc="Una respuesta distinta a la esperada es un fallo. Varios fallos seguidos abren un incidente."
@@ -637,7 +648,7 @@ export function NuevoMonitorPage() {
                     <span
                       className={cn(
                         "grid size-[15px] shrink-0 place-items-center rounded-[5px] border-[1.5px] transition-colors duration-200",
-                        item.ok ? "border-ok bg-ok" : "border-border bg-card"
+                        item.ok ? "border-ok bg-ok" : "border-input bg-card"
                       )}
                     >
                       <CheckIcon
@@ -663,8 +674,8 @@ export function NuevoMonitorPage() {
           </aside>
         </div>
 
-        <div className="sticky bottom-0 z-30 -mx-4 -mb-4 mt-auto border-t border-border bg-background/90 pb-[env(safe-area-inset-bottom)] backdrop-blur-md">
-          <div className="mx-auto flex w-full max-w-[1180px] flex-wrap items-center gap-x-4 gap-y-3 px-4 py-3 lg:px-6">
+        <div className="sticky bottom-0 z-30 -mx-6 -mb-6 mt-auto border-t border-border bg-background/90 pb-[env(safe-area-inset-bottom)] backdrop-blur-md">
+          <div className="mx-auto flex w-full max-w-[1180px] flex-wrap items-center gap-x-4 gap-y-3 px-6 py-3">
             <Label className="cursor-pointer">
               <Switch
                 checked={activo}

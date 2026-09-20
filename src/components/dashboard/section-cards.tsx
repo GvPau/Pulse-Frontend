@@ -21,7 +21,7 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card'
-import { fmtMs, fmtPct } from './utils'
+import { fmtMs, fmtUptime } from './utils'
 
 type MonitorCardProps = {
   label: string
@@ -105,10 +105,10 @@ export function SectionCards() {
   const availability = total > 0 ? operational / total : null
 
   return (
-    <div className="*:data-[slot=card]:bg-gradient-to-t *:data-[slot=card]:from-primary/5 *:data-[slot=card]:to-card *:data-[slot=card]:shadow-xs grid grid-cols-1 gap-4 px-4 lg:px-6 @xl/main:grid-cols-2 @5xl/main:grid-cols-4 dark:*:data-[slot=card]:bg-card">
+    <div className="*:data-[slot=card]:bg-gradient-to-t *:data-[slot=card]:from-primary/5 *:data-[slot=card]:to-card *:data-[slot=card]:shadow-xs grid grid-cols-1 gap-4 @xl/main:grid-cols-2 @5xl/main:grid-cols-4 dark:*:data-[slot=card]:bg-card">
       <MonitorCard
         label="Disponibilidad"
-        value={availability !== null ? fmtPct(availability) : '—'}
+        value={availability !== null ? fmtUptime(availability) : '—'}
         badge={
           <Badge variant={down > 0 ? 'destructive' : 'outline'}>
             {down > 0 ? <TriangleAlert /> : <CheckCircle2 />}

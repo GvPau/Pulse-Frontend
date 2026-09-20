@@ -49,7 +49,11 @@ function HeaderTitle() {
   }
 
   if (!id) {
-    return <h1 className="text-base font-medium">{TITLES[pathname] ?? 'Monitores'}</h1>
+    return (
+      <h1 tabIndex={-1} className="text-base font-medium outline-none">
+        {TITLES[pathname] ?? 'Monitores'}
+      </h1>
+    )
   }
 
   return (

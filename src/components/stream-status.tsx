@@ -35,6 +35,13 @@ function patchMonitorCheck(queryClient: QueryClient, check: Check) {
     return current.status
   }
 
+  const beat: 'ok' | 'down' = success ? 'ok' : 'down'
+
+  const withBeat = (m: MonitorWithStatus): MonitorWithStatus => ({
+    ...m,
+    beats: [...(m.beats ?? []), beat].slice(-30),
+  })
+
   queryClient.setQueryData<ListResponse<MonitorWithStatus>>(
     ['monitors'],
     (old) => {
@@ -44,7 +51,7 @@ function patchMonitorCheck(queryClient: QueryClient, check: Check) {
         data: old.data.map((m) =>
           m.id === monitorId
             ? {
-                ...m,
+                ...withBeat(m),
                 status: resolveStatus(m),
                 last_check_at: checked_at,
                 last_status_code: status_code,
@@ -59,7 +66,7 @@ function patchMonitorCheck(queryClient: QueryClient, check: Check) {
   queryClient.setQueryData<MonitorWithStatus>(['monitors', monitorId], (old) => {
     if (!old) return old
     return {
-      ...old,
+      ...withBeat(old),
       status: resolveStatus(old),
       last_check_at: checked_at,
       last_status_code: status_code,
@@ -160,9 +167,9 @@ export function AppSseStatus() {
     status === 'open' ? 'En vivo' : status === 'closed' ? 'Reconectando…' : 'Conectando…'
   const dot =
     status === 'open'
-      ? 'bg-[--ok] animate-pulse'
+      ? 'bg-ok motion-safe:animate-pulse'
       : status === 'closed'
-        ? 'bg-[--warn]'
+        ? 'bg-warn'
         : 'bg-muted-foreground/50'
 
   const activity =

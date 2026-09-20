@@ -82,6 +82,7 @@ export interface MonitorWithStatus extends Monitor {
   uptime: number
   avg_response_ms: number
   checks: number
+  beats?: Array<'ok' | 'down'>
 }
 
 export interface Check {

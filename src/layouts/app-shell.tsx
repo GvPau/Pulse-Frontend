@@ -23,9 +23,8 @@ export function AppShell() {
     >
       <AppSidebar onLogout={logout} />
       <SidebarInset className="relative">
-        <div aria-hidden className="pointer-events-none absolute inset-0 bg-[radial-gradient(70%_60%_at_85%_-10%,color-mix(in_oklch,var(--primary)_12%,transparent),transparent)]" />
         <SiteHeader />
-        <div className="relative mx-auto flex w-full max-w-[1180px] flex-1 flex-col gap-4 p-4 transition-all duration-200 ease-in-out group-data-[collapsible=icon]/sidebar-wrapper:h-auto">
+        <div className="relative mx-auto flex w-full max-w-[1180px] flex-1 flex-col gap-4 px-6 py-6 transition-all duration-200 ease-in-out group-data-[collapsible=icon]/sidebar-wrapper:h-auto">
           <Outlet />
         </div>
         <Toaster />

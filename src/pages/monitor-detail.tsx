@@ -54,14 +54,21 @@ import { Label } from '@/components/ui/label'
 import { Separator } from '@/components/ui/separator'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import { ChecksTable, type CheckFilter } from '@/components/monitor/checks-table'
 import { KpiCard } from '@/components/monitor/kpi-card'
 import { LatencyChart } from '@/components/monitor/latency-chart'
-import { MonitorStatusBadge } from '@/components/monitor/status-badge'
-import { getMonitorStatus } from '@/components/monitor/status'
 import { UptimeStrip } from '@/components/monitor/uptime-strip'
-import { fmtMs, fmtPct, toRequest } from '@/components/dashboard/utils'
+import {
+  fmtInterval,
+  fmtMs,
+  fmtUptime,
+  StatusBadge,
+  toRequest,
+} from '@/components/dashboard/utils'
+import {
+  Segmented,
+  SegmentedItem,
+} from '@/components/dashboard/segmented'
 
 const WINDOWS: { value: MetricsWindow; label: string }[] = [
   { value: '24h', label: '24 h' },
@@ -90,10 +97,11 @@ const KPI_SUB: Record<MetricsWindow, string> = {
   '90d': 'en los últimos 90 días',
 }
 
-function fmtInterval(seconds: number) {
-  if (seconds < 60) return `${seconds} s`
-  if (seconds % 60 === 0) return `${seconds / 60} min`
-  return `${seconds / 60} min`
+const WINDOW_BUCKETS: Record<MetricsWindow, number> = {
+  '24h': 24,
+  '7d': 168,
+  '30d': 720,
+  '90d': 720,
 }
 
 function fmtDuration(startedAt: string, resolvedAt: string | null) {
@@ -106,7 +114,15 @@ function fmtDuration(startedAt: string, resolvedAt: string | null) {
   return `${Math.floor(total / 3600)} h ${Math.floor((total % 3600) / 60)} min`
 }
 
-function NextRunKpi({ nextRun, active }: { nextRun: string | null; active: boolean }) {
+function NextRunKpi({
+  nextRun,
+  active,
+  intervalSec,
+}: {
+  nextRun: string | null
+  active: boolean
+  intervalSec: number
+}) {
   const [now, setNow] = useState(() => Date.now())
 
   useEffect(() => {
@@ -115,6 +131,9 @@ function NextRunKpi({ nextRun, active }: { nextRun: string | null; active: boole
   }, [])
 
   let value = 'Ahora'
+  let sub = active
+    ? 'según el intervalo configurado'
+    : 'el monitor está en pausa'
   if (!active) value = 'Pausado'
   else if (nextRun) {
     const diff = new Date(nextRun).getTime() - now
@@ -123,6 +142,7 @@ function NextRunKpi({ nextRun, active }: { nextRun: string | null; active: boole
       if (seconds < 60) value = `en ${seconds} s`
       else if (seconds < 3600) value = `en ${Math.floor(seconds / 60)} min`
       else value = `en ${Math.floor(seconds / 3600)} h`
+      sub = `dentro de ${fmtInterval(intervalSec)}`
     }
   }
 
@@ -131,7 +151,7 @@ function NextRunKpi({ nextRun, active }: { nextRun: string | null; active: boole
       label="Siguiente comprobación"
       icon={<CalendarClock />}
       value={value}
-      sub={active ? 'próxima comprobación programada' : 'el monitor está en pausa'}
+      sub={sub}
     />
   )
 }
@@ -169,9 +189,7 @@ function MonitorConfigCard({ monitor }: { monitor: MonitorWithStatus }) {
         <ConfigRow term="Estado">
           <span className="inline-flex items-center gap-1.5">
             <span
-              className={`size-1.5 rounded-full ${
-                monitor.active ? 'bg-[--ok]' : 'bg-muted-foreground/60'
-              }`}
+              className="size-1.5 rounded-full bg-muted-foreground/40"
               aria-hidden
             />
             {monitor.active ? 'Activo' : 'En pausa'}
@@ -216,9 +234,9 @@ function LastIncidentCard({ incident }: { incident: Incident | null }) {
           {open ? (
             <Badge
               variant="outline"
-              className="gap-1.5 border-[--down]/25 bg-[--down]/10 text-sm font-medium text-[--down]"
+              className="gap-1.5 border-down/25 bg-down/10 text-sm font-medium text-down"
             >
-              <span className="size-1.5 rounded-full bg-[--down] motion-safe:animate-pulse" aria-hidden />
+              <span className="size-1.5 rounded-full bg-down motion-safe:animate-pulse" aria-hidden />
               Activo
             </Badge>
           ) : (
@@ -262,9 +280,9 @@ function IncidentCard({ incident }: { incident: Incident }) {
           {open ? (
             <Badge
               variant="outline"
-              className="gap-1.5 border-[--down]/25 bg-[--down]/10 text-[--down]"
+              className="gap-1.5 border-down/25 bg-down/10 text-down"
             >
-              <span className="size-1.5 rounded-full bg-[--down] motion-safe:animate-pulse" aria-hidden />
+              <span className="size-1.5 rounded-full bg-down motion-safe:animate-pulse" aria-hidden />
               Activo
             </Badge>
           ) : (
@@ -367,12 +385,7 @@ export function MonitorDetailPage() {
   const chartData = useMemo(
     () =>
       (metrics?.series ?? []).map((point) => ({
-        time: new Date(point.bucket).toLocaleString([], {
-          day: '2-digit',
-          month: '2-digit',
-          hour: '2-digit',
-          minute: '2-digit',
-        }),
+        time: new Date(point.bucket).getTime(),
         latency: point.avg_response_ms,
       })),
     [metrics]
@@ -419,29 +432,18 @@ export function MonitorDetailPage() {
 
   if (!monitor) return null
 
-  const status = getMonitorStatus(monitor.status, monitor.active)
   const windowDesc = WINDOW_DESC[window]
   const kpiSub = KPI_SUB[window]
 
   return (
     <div className="@container/main flex flex-1 flex-col gap-4">
       <div className="flex flex-col gap-3">
-        <Button
-          variant="ghost"
-          size="sm"
-          className="-ml-2 w-fit gap-1.5 px-2 text-muted-foreground"
-          onClick={() => navigate('/monitores')}
-        >
-          <ArrowLeft className="size-4" />
-          Monitores
-        </Button>
-
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex min-w-0 items-center gap-2.5">
             <h1 className="truncate text-xl font-semibold tracking-tight">
               {monitor.name}
             </h1>
-            <MonitorStatusBadge status={status} />
+            <StatusBadge status={monitor.status} active={monitor.active} />
           </div>
 
           <div className="flex items-center gap-2">
@@ -527,7 +529,7 @@ export function MonitorDetailPage() {
               icon={<Activity />}
               value={
                 metrics ? (
-                  fmtPct(metrics.summary.uptime)
+                  fmtUptime(metrics.summary.uptime)
                 ) : (
                   <Skeleton className="h-7 w-16" />
                 )
@@ -558,7 +560,11 @@ export function MonitorDetailPage() {
               }
               sub={metrics ? kpiSub : undefined}
             />
-            <NextRunKpi nextRun={monitor.next_run} active={monitor.active} />
+            <NextRunKpi
+              nextRun={monitor.next_run}
+              active={monitor.active}
+              intervalSec={monitor.interval_seconds}
+            />
           </div>
 
           <Card>
@@ -568,32 +574,33 @@ export function MonitorDetailPage() {
                 Latencia media · {windowDesc}
               </CardDescription>
               <CardAction>
-                <ToggleGroup
-                  variant="outline"
-                  size="sm"
-                  value={[window]}
-                  onValueChange={(value) => {
-                    const next = value?.[0]
-                    if (next) setWindow(next as MetricsWindow)
-                  }}
-                >
+                <Segmented label="Ventana de tiempo">
                   {WINDOWS.map((w) => (
-                    <ToggleGroupItem key={w.value} value={w.value} className="h-7 w-9">
+                    <SegmentedItem
+                      key={w.value}
+                      active={window === w.value}
+                      onClick={() => setWindow(w.value)}
+                    >
                       {w.label}
-                    </ToggleGroupItem>
+                    </SegmentedItem>
                   ))}
-                </ToggleGroup>
+                </Segmented>
               </CardAction>
             </CardHeader>
             <CardContent className="flex flex-col gap-6 px-2 sm:px-6">
               {metrics ? (
-                <LatencyChart data={chartData} />
+                <LatencyChart data={chartData} window={window} />
               ) : (
                 <Skeleton className="h-[220px]" />
               )}
               <Separator />
               {metrics && metrics.series.length > 0 ? (
-                <UptimeStrip series={metrics.series} fromLabel={UPTIME_FROM[window]} />
+                <UptimeStrip
+                  series={metrics.series}
+                  fromLabel={UPTIME_FROM[window]}
+                  incidentActive={incidents.some((i) => !i.resolved_at)}
+                  expectedBuckets={WINDOW_BUCKETS[window]}
+                />
               ) : (
                 <Skeleton className="h-12" />
               )}

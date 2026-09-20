@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query'
 import { CirclePlus } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { listMonitors } from '@/api/monitors'
-import { STATUS_META, getMonitorStatus } from '@/components/monitor/status'
+import { STATUS_DOT } from '@/components/dashboard/utils'
 import {
   SidebarGroup,
   SidebarGroupAction,
@@ -12,6 +12,7 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
 } from '@/components/ui/sidebar'
+import { cn } from 'cn'
 
 const MAX_ITEMS = 8
 
@@ -39,17 +40,27 @@ export function MonitorsNav() {
       <SidebarGroupContent>
         <SidebarMenu>
           {items.map((monitor) => {
-            const status = getMonitorStatus(monitor.status, monitor.active)
-            const meta = STATUS_META[status]
-            const latency = monitor.avg_response_ms > 0 ? `${Math.round(monitor.avg_response_ms)} ms` : null
+            const dot = STATUS_DOT[monitor.active ? monitor.status : 'paused']
+            const latency =
+              monitor.avg_response_ms > 0
+                ? `${Math.round(monitor.avg_response_ms)} ms`
+                : null
             return (
               <SidebarMenuItem key={monitor.id}>
                 <SidebarMenuButton
                   render={<Link to={`/monitores/${monitor.id}`} />}
-                  className="gap-2"
+                  className="h-8 gap-2"
                 >
-                  <span className={`size-2 shrink-0 rounded-full ${meta.dot}`} aria-hidden />
-                  <span>{monitor.name}</span>
+                  <span
+                    aria-hidden
+                    className={cn('size-2 shrink-0 rounded-full', dot)}
+                  />
+                  <span
+                    className="min-w-0 flex-1 truncate"
+                    title={monitor.name}
+                  >
+                    {monitor.name}
+                  </span>
                   {latency && (
                     <span className="ml-auto shrink-0 text-xs text-muted-foreground tabular-nums">
                       {latency}
