@@ -55,6 +55,7 @@ import { Separator } from '@/components/ui/separator'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { ChecksTable, type CheckFilter } from '@/components/monitor/checks-table'
+import { MonitorEditForm } from '@/components/monitor/monitor-edit-form'
 import { KpiCard } from '@/components/monitor/kpi-card'
 import { LatencyChart } from '@/components/monitor/latency-chart'
 import { UptimeStrip } from '@/components/monitor/uptime-strip'
@@ -165,11 +166,18 @@ function ConfigRow({ term, children }: { term: string; children: ReactNode }) {
   )
 }
 
-function MonitorConfigCard({ monitor }: { monitor: MonitorWithStatus }) {
+function MonitorConfigCard({
+  monitor,
+  action,
+}: {
+  monitor: MonitorWithStatus
+  action?: ReactNode
+}) {
   return (
     <Card>
       <CardHeader>
         <CardTitle>Configuración</CardTitle>
+        {action != null && <CardAction>{action}</CardAction>}
       </CardHeader>
       <CardContent className="grid grid-cols-2 gap-x-4">
         <ConfigRow term="URL">
@@ -317,6 +325,7 @@ export function MonitorDetailPage() {
   const [filter, setFilter] = useState<CheckFilter>('all')
   const [deleteOpen, setDeleteOpen] = useState(false)
   const [confirmName, setConfirmName] = useState('')
+  const [editing, setEditing] = useState(false)
 
   const monitorQuery = useQuery({
     queryKey: ['monitors', id],
@@ -357,6 +366,19 @@ export function MonitorDetailPage() {
       toast.success(monitor?.active ? 'Monitor pausado' : 'Monitor reanudado')
     },
     onError: () => toast.error('No se pudo actualizar el monitor'),
+  })
+
+  const saveMutation = useMutation({
+    mutationFn: (body: MonitorRequest) => updateMonitor(id!, body),
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['monitors', id] }),
+        queryClient.invalidateQueries({ queryKey: ['monitors'] }),
+      ])
+      toast.success('Configuración actualizada')
+      setEditing(false)
+    },
+    onError: () => toast.error('No se pudo actualizar la configuración'),
   })
 
   const deleteMutation = useMutation({
@@ -482,7 +504,12 @@ export function MonitorDetailPage() {
                   <Copy />
                   Copiar URL
                 </DropdownMenuItem>
-                <DropdownMenuItem onSelect={() => setTab('configuracion')}>
+                <DropdownMenuItem
+                  onSelect={() => {
+                    setTab('configuracion')
+                    setEditing(true)
+                  }}
+                >
                   <Settings2 />
                   Editar configuración
                 </DropdownMenuItem>
@@ -684,9 +711,27 @@ export function MonitorDetailPage() {
         </TabsContent>
 
         <TabsContent value="configuracion" className="flex flex-col gap-4">
-          <div className="grid items-start gap-4 lg:grid-cols-2">
-            <MonitorConfigCard monitor={monitor} />
-            <Card>
+          {editing ? (
+            <div className="grid items-start gap-4">
+              <MonitorEditForm
+                monitor={monitor}
+                isSaving={saveMutation.isPending}
+                onSave={(body) => saveMutation.mutate(body)}
+                onCancel={() => setEditing(false)}
+              />
+            </div>
+          ) : (
+            <div className="grid items-start gap-4 lg:grid-cols-2">
+              <MonitorConfigCard
+                monitor={monitor}
+                action={
+                  <Button size="sm" variant="outline" onClick={() => setEditing(true)}>
+                    <Settings2 />
+                    Editar
+                  </Button>
+                }
+              />
+              <Card>
               <CardHeader>
                 <CardTitle className="text-destructive">Zona de peligro</CardTitle>
                 <CardDescription>
@@ -702,6 +747,7 @@ export function MonitorDetailPage() {
               </CardContent>
             </Card>
           </div>
+          )}
         </TabsContent>
       </Tabs>
 
